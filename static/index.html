@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>DevPulse — System Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+/* ─── Variables ──────────────────────────────────────────── */
+:root {
+  --bg:       #070b0f;
+  --panel:    #0d1117;
+  --panel2:   #111820;
+  --border:   #1e2a35;
+  --border2:  #243040;
+  --text:     #c9d8e8;
+  --muted:    #4a6070;
+  --bright:   #e8f4ff;
+
+  --cyan:     #00d4ff;
+  --green:    #00ff88;
+  --yellow:   #ffcc00;
+  --orange:   #ff7722;
+  --red:      #ff3355;
+  --purple:   #aa66ff;
+
+  --mono: 'JetBrains Mono', monospace;
+  --display: 'Syne', sans-serif;
+
+  --r: 6px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--mono);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scanline effect overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.03) 2px,
+    rgba(0,0,0,0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ─── Header ─────────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.logo-mark {
+  width: 36px; height: 36px;
+  border: 2px solid var(--cyan);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+.logo-mark::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(0,212,255,0.15), transparent);
+  animation: pulse-bg 2s ease-in-out infinite alternate;
+}
+@keyframes pulse-bg {
+  from { opacity: 0.5; }
+  to   { opacity: 1; }
+}
+.logo-mark svg { width: 18px; height: 18px; z-index: 1; }
+
+.logo-text {
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--bright);
+  letter-spacing: -0.5px;
+}
+.logo-text span { color: var(--cyan); }
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.status-dot {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+
+.dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.dot.live {
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  animation: blink 1.5s ease-in-out infinite;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+#clock {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+/* ─── Layout ─────────────────────────────────────────────── */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 12px;
+  padding: 16px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+/* ─── Panel base ─────────────────────────────────────────── */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border2), transparent);
+}
+
+.panel-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--muted);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-label .indicator {
+  width: 4px; height: 14px;
+  border-radius: 2px;
+}
+
+/* ─── Grid spans ─────────────────────────────────────────── */
+.col-3  { grid-column: span 3; }
+.col-4  { grid-column: span 4; }
+.col-6  { grid-column: span 6; }
+.col-8  { grid-column: span 8; }
+.col-12 { grid-column: span 12; }
+
+/* ─── Big Metric ─────────────────────────────────────────── */
+.metric-big {
+  font-family: var(--display);
+  font-size: 52px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -2px;
+  color: var(--bright);
+  margin: 8px 0 6px;
+}
+
+.metric-unit {
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--muted);
+  letter-spacing: 0;
+}
+
+.metric-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ─── Gauge ──────────────────────────────────────────────── */
+.gauge-wrap {
+  position: relative;
+  width: 130px; height: 70px;
+  margin: 10px auto 4px;
+}
+
+.gauge-wrap canvas { position: absolute; top: 0; left: 0; }
+
+.gauge-value {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  text-align: center;
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--bright);
+}
+
+/* ─── Ring gauge (big) ───────────────────────────────────── */
+.ring-container {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.ring-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.ring-pct {
+  font-family: var(--display);
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--bright);
+  line-height: 1;
+}
+
+.ring-lbl {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.ring-details { flex: 1; }
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.detail-row:last-child { border-bottom: none; }
+.detail-key { color: var(--muted); }
+.detail-val { color: var(--text); font-weight: 600; }
+
+/* ─── Sparkline ──────────────────────────────────────────── */
+.sparkline-wrap {
+  width: 100%;
+  height: 60px;
+  margin-top: 10px;
+}
+
+/* ─── Core bars ──────────────────────────────────────────── */
+.cores-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.core-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.core-bar-wrap {
+  width: 100%;
+  height: 50px;
+  background: var(--panel2);
+  border-radius: 3px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.core-bar-fill {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: var(--cyan);
+  transition: height 0.6s ease;
+  border-radius: 2px 2px 0 0;
+}
+
+.core-label {
+  font-size: 9px;
+  color: var(--muted);
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+
+.core-pct {
+  font-size: 10px;
+  color: var(--text);
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ─── Disk bars ──────────────────────────────────────────── */
+.disk-item { margin-bottom: 14px; }
+.disk-item:last-child { margin-bottom: 0; }
+
+.disk-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.disk-path { color: var(--text); font-weight: 600; }
+.disk-usage { color: var(--muted); }
+
+.bar-track {
+  height: 8px;
+  background: var(--panel2);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.8s ease;
+}
+
+.disk-sizes {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ─── Network ────────────────────────────────────────────── */
+.net-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.net-card {
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  text-align: center;
+}
+
+.net-icon { font-size: 18px; margin-bottom: 4px; }
+
+.net-speed {
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--bright);
+}
+
+.net-unit { font-size: 11px; color: var(--muted); }
+.net-label { font-size: 10px; color: var(--muted); margin-top: 2px; letter-spacing: 1px; text-transform: uppercase; }
+
+/* ─── Process table ──────────────────────────────────────── */
+.proc-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+
+.proc-table th {
+  text-align: left;
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  padding: 0 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.proc-table td {
+  padding: 8px;
+  border-bottom: 1px solid rgba(30,42,53,0.5);
+  color: var(--text);
+}
+
+.proc-table tr:last-child td { border-bottom: none; }
+
+.proc-table tr:hover td { background: rgba(0,212,255,0.03); }
+
+.proc-name { font-weight: 600; color: var(--bright); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proc-pid  { color: var(--muted); }
+
+.bar-inline {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--panel2);
+  margin-top: 3px;
+  overflow: hidden;
+}
+.bar-inline-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.6s ease;
+}
+
+/* ─── System info strip ──────────────────────────────────── */
+.sysinfo {
+  display: flex;
+  gap: 0;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  grid-column: span 12;
+}
+
+.sysinfo-item {
+  flex: 1;
+  padding: 14px 20px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sysinfo-item:last-child { border-right: none; }
+
+.sysinfo-key {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.sysinfo-val {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--bright);
+}
+
+/* ─── Connection banner ──────────────────────────────────── */
+#conn-banner {
+  display: none;
+  position: fixed;
+  bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: rgba(255,51,85,0.9);
+  color: white;
+  padding: 10px 24px;
+  border-radius: 30px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 9999;
+  backdrop-filter: blur(10px);
+  animation: fadeIn 0.3s ease;
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } }
+
+/* ─── Responsive ─────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .col-3  { grid-column: span 6; }
+  .col-4  { grid-column: span 6; }
+  .col-8  { grid-column: span 12; }
+}
+
+@media (max-width: 700px) {
+  .col-3, .col-4, .col-6, .col-8 { grid-column: span 12; }
+  .grid { padding: 10px; gap: 8px; }
+  .sysinfo { flex-direction: column; }
+  .sysinfo-item { border-right: none; border-bottom: 1px solid var(--border); }
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="2.5" stroke-linecap="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">Dev<span>Pulse</span></div>
+    </div>
+  </div>
+
+  <div class="header-meta">
+    <div class="status-dot">
+      <div class="dot" id="status-dot"></div>
+      <span id="status-text">Connecting...</span>
+    </div>
+    <div id="hostname" style="color:var(--text)">—</div>
+    <div id="clock">--:--:--</div>
+  </div>
+</header>
+
+<!-- Main Grid -->
+<div class="grid">
+
+  <!-- System Info Strip -->
+  <div class="sysinfo">
+    <div class="sysinfo-item">
+      <span class="sysinfo-key">OS</span>
+      <span class="sysinfo-val" id="si-os">—</span>
+    </div>
+    <div class="sysinfo-item">
+      <span class="sysinfo-key">Hostname</span>
+      <span class="sysinfo-val" id="si-host">—</span>
+    </div>
+    <div class="sysinfo-item">
+      <span class="sysinfo-key">Architecture</span>
+      <span class="sysinfo-val" id="si-arch">—</span>
+    </div>
+    <div class="sysinfo-item">
+      <span class="sysinfo-key">Uptime</span>
+      <span class="sysinfo-val" id="si-uptime">—</span>
+    </div>
+    <div class="sysinfo-item">
+      <span class="sysinfo-key">CPU Cores</span>
+      <span class="sysinfo-val" id="si-cores">—</span>
+    </div>
+    <div class="sysinfo-item">
+      <span class="sysinfo-key">CPU Freq</span>
+      <span class="sysinfo-val" id="si-freq">—</span>
+    </div>
+  </div>
+
+  <!-- CPU Usage (big ring) -->
+  <div class="panel col-4">
+    <div class="panel-label">
+      <div class="indicator" style="background:var(--cyan)"></div>
+      CPU Usage
+    </div>
+    <div class="ring-container">
+      <div class="ring-wrap">
+        <canvas id="ring-cpu" width="130" height="130"></canvas>
+        <div class="ring-center">
+          <div class="ring-pct" id="cpu-pct">0%</div>
+          <div class="ring-lbl">CPU</div>
+        </div>
+      </div>
+      <div class="ring-details">
+        <div class="detail-row"><span class="detail-key">Physical</span><span class="detail-val" id="cpu-phys">—</span></div>
+        <div class="detail-row"><span class="detail-key">Logical</span><span class="detail-val" id="cpu-logic">—</span></div>
+        <div class="detail-row"><span class="detail-key">Freq</span><span class="detail-val" id="cpu-freq-val">—</span></div>
+        <div class="detail-row"><span class="detail-key">Temp</span><span class="detail-val" id="cpu-temp">—</span></div>
+      </div>
+    </div>
+    <!-- Sparkline -->
+    <canvas class="sparkline-wrap" id="spark-cpu" height="60"></canvas>
+  </div>
+
+  <!-- RAM (big ring) -->
+  <div class="panel col-4">
+    <div class="panel-label">
+      <div class="indicator" style="background:var(--purple)"></div>
+      Memory
+    </div>
+    <div class="ring-container">
+      <div class="ring-wrap">
+        <canvas id="ring-mem" width="130" height="130"></canvas>
+        <div class="ring-center">
+          <div class="ring-pct" id="mem-pct">0%</div>
+          <div class="ring-lbl">RAM</div>
+        </div>
+      </div>
+      <div class="ring-details">
+        <div class="detail-row"><span class="detail-key">Total</span><span class="detail-val" id="mem-total">—</span></div>
+        <div class="detail-row"><span class="detail-key">Used</span><span class="detail-val" id="mem-used">—</span></div>
+        <div class="detail-row"><span class="detail-key">Free</span><span class="detail-val" id="mem-free">—</span></div>
+        <div class="detail-row"><span class="detail-key">Swap</span><span class="detail-val" id="mem-swap">—</span></div>
+      </div>
+    </div>
+    <canvas class="sparkline-wrap" id="spark-mem" height="60"></canvas>
+  </div>
+
+  <!-- Network -->
+  <div class="panel col-4">
+    <div class="panel-label">
+      <div class="indicator" style="background:var(--green)"></div>
+      Network I/O
+    </div>
+    <div class="net-stats">
+      <div class="net-card">
+        <div class="net-icon">↓</div>
+        <div class="net-speed" id="net-recv" style="color:var(--green)">0</div>
+        <div class="net-unit" id="net-recv-unit">KB/s</div>
+        <div class="net-label">Download</div>
+      </div>
+      <div class="net-card">
+        <div class="net-icon">↑</div>
+        <div class="net-speed" id="net-sent" style="color:var(--cyan)">0</div>
+        <div class="net-unit" id="net-sent-unit">KB/s</div>
+        <div class="net-label">Upload</div>
+      </div>
+    </div>
+    <canvas class="sparkline-wrap" id="spark-net" height="60"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:8px">
+      <span>Total ↓ <span id="net-total-recv" style="color:var(--text)">—</span></span>
+      <span>Total ↑ <span id="net-total-sent" style="color:var(--text)">—</span></span>
+    </div>
+  </div>
+
+  <!-- Per-core bars -->
+  <div class="panel col-6">
+    <div class="panel-label">
+      <div class="indicator" style="background:var(--cyan)"></div>
+      Per-Core Usage
+    </div>
+    <div class="cores-grid" id="cores-grid"></div>
+  </div>
+
+  <!-- Disk -->
+  <div class="panel col-6">
+    <div class="panel-label">
+      <div class="indicator" style="background:var(--yellow)"></div>
+      Disk Usage
+    </div>
+    <div id="disk-list"></div>
+  </div>
+
+  <!-- Top Processes -->
+  <div class="panel col-12">
+    <div class="panel-label">
+      <div class="indicator" style="background:var(--orange)"></div>
+      Top Processes — by CPU
+    </div>
+    <table class="proc-table">
+      <thead>
+        <tr>
+          <th>Process</th>
+          <th>PID</th>
+          <th style="width:200px">CPU %</th>
+          <th style="width:200px">MEM %</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="proc-tbody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<div id="conn-banner">⚠ Connection lost — reconnecting…</div>
+
+<script>
+// ─── Utils ────────────────────────────────────────────────────────────────────
+
+function fmt_bytes(b, dec=1) {
+  if (b === 0) return '0 B';
+  const k = 1024, units = ['B','KB','MB','GB','TB'];
+  const i = Math.floor(Math.log(b) / Math.log(k));
+  return parseFloat((b / Math.pow(k, i)).toFixed(dec)) + ' ' + units[i];
+}
+
+function fmt_speed(bps) {
+  if (bps < 1024) return { val: bps.toFixed(0), unit: 'B/s' };
+  if (bps < 1024*1024) return { val: (bps/1024).toFixed(1), unit: 'KB/s' };
+  return { val: (bps/1024/1024).toFixed(2), unit: 'MB/s' };
+}
+
+function color_for_pct(p) {
+  if (p < 50) return getComputedStyle(document.documentElement).getPropertyValue('--cyan').trim();
+  if (p < 75) return getComputedStyle(document.documentElement).getPropertyValue('--yellow').trim();
+  if (p < 90) return getComputedStyle(document.documentElement).getPropertyValue('--orange').trim();
+  return getComputedStyle(document.documentElement).getPropertyValue('--red').trim();
+}
+
+// ─── Ring Gauge ───────────────────────────────────────────────────────────────
+
+function draw_ring(canvasId, percent, color) {
+  const cv = document.getElementById(canvasId);
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  const cx = W/2, cy = H/2, r = 50, lw = 10;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Track
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.strokeStyle = '#1e2a35';
+  ctx.lineWidth = lw;
+  ctx.stroke();
+
+  // Fill
+  const start = -Math.PI/2;
+  const end   = start + (Math.PI*2 * (percent/100));
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, start, end);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lw;
+  ctx.lineCap = 'round';
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 12;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+// ─── Sparkline ────────────────────────────────────────────────────────────────
+
+const sparkData = {
+  cpu: [],
+  mem: [],
+  net_recv: [],
+  net_sent: []
+};
+
+const MAX_POINTS = 60;
+
+function push_spark(key, val) {
+  sparkData[key].push(val);
+  if (sparkData[key].length > MAX_POINTS) sparkData[key].shift();
+}
+
+function draw_spark(canvasId, data, color, color2) {
+  const cv = document.getElementById(canvasId);
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  const W = cv.width = cv.offsetWidth || cv.parentElement.offsetWidth;
+  const H = cv.height;
+  if (!W || data.length < 2) return;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const max = Math.max(...data, 1);
+  const step = W / (MAX_POINTS - 1);
+
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, color + '44');
+  grad.addColorStop(1, color + '00');
+
+  ctx.beginPath();
+  data.forEach((v, i) => {
+    const x = i * step;
+    const y = H - (v / max) * (H - 4) - 2;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+
+  // Fill area
+  ctx.lineTo((data.length-1)*step, H);
+  ctx.lineTo(0, H);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  data.forEach((v, i) => {
+    const x = i * step;
+    const y = H - (v / max) * (H - 4) - 2;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 6;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // If second dataset (net)
+  if (color2 && sparkData.net_sent.length > 1) {
+    const data2 = sparkData.net_sent;
+    const max2 = Math.max(...data2, 1);
+    ctx.beginPath();
+    data2.forEach((v, i) => {
+      const x = i * step;
+      const y = H - (v / max2) * (H - 4) - 2;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = color2;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3,3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+// ─── Render functions ─────────────────────────────────────────────────────────
+
+function render(d) {
+  // System strip
+  document.getElementById('si-os').textContent     = `${d.system.os} ${d.system.release}`;
+  document.getElementById('si-host').textContent   = d.system.hostname;
+  document.getElementById('si-arch').textContent   = d.system.machine;
+  document.getElementById('si-uptime').textContent = d.system.uptime;
+  document.getElementById('si-cores').textContent  = `${d.cpu.count_phys}P / ${d.cpu.count}L`;
+  document.getElementById('si-freq').textContent   = d.cpu.freq_mhz ? `${d.cpu.freq_mhz} MHz` : '—';
+  document.getElementById('hostname').textContent  = d.system.hostname;
+
+  // ── CPU ──────────────────────────────────────────────────
+  const cpuPct = d.cpu.percent;
+  const cpuColor = color_for_pct(cpuPct);
+
+  document.getElementById('cpu-pct').textContent   = cpuPct.toFixed(1) + '%';
+  document.getElementById('cpu-pct').style.color   = cpuColor;
+  document.getElementById('cpu-phys').textContent  = d.cpu.count_phys + ' cores';
+  document.getElementById('cpu-logic').textContent = d.cpu.count + ' threads';
+  document.getElementById('cpu-freq-val').textContent = d.cpu.freq_mhz ? d.cpu.freq_mhz + ' MHz' : '—';
+  document.getElementById('cpu-temp').textContent  = d.cpu.temp_c ? d.cpu.temp_c + ' °C' : '—';
+
+  draw_ring('ring-cpu', cpuPct, cpuColor);
+
+  push_spark('cpu', cpuPct);
+  draw_spark('spark-cpu', sparkData.cpu, cpuColor);
+
+  // Per-core
+  const grid = document.getElementById('cores-grid');
+  if (d.cpu.per_core) {
+    if (grid.children.length !== d.cpu.per_core.length) {
+      grid.innerHTML = '';
+      d.cpu.per_core.forEach((_, i) => {
+        grid.innerHTML += `
+          <div class="core-item">
+            <div class="core-pct" id="c-pct-${i}">0%</div>
+            <div class="core-bar-wrap">
+              <div class="core-bar-fill" id="c-bar-${i}"></div>
+            </div>
+            <div class="core-label">C${i}</div>
+          </div>`;
+      });
+    }
+    d.cpu.per_core.forEach((p, i) => {
+      const el = document.getElementById(`c-bar-${i}`);
+      const pt = document.getElementById(`c-pct-${i}`);
+      if (el) { el.style.height = p + '%'; el.style.background = color_for_pct(p); }
+      if (pt) pt.textContent = p.toFixed(0) + '%';
+    });
+  }
+
+  // ── Memory ───────────────────────────────────────────────
+  const memPct = d.memory.percent;
+  const memColor = color_for_pct(memPct);
+
+  document.getElementById('mem-pct').textContent    = memPct.toFixed(1) + '%';
+  document.getElementById('mem-pct').style.color    = memColor;
+  document.getElementById('mem-total').textContent  = fmt_bytes(d.memory.total);
+  document.getElementById('mem-used').textContent   = fmt_bytes(d.memory.used);
+  document.getElementById('mem-free').textContent   = fmt_bytes(d.memory.free);
+  document.getElementById('mem-swap').textContent   = d.memory.swap_total > 0
+    ? `${fmt_bytes(d.memory.swap_used)} / ${fmt_bytes(d.memory.swap_total)}`
+    : 'None';
+
+  draw_ring('ring-mem', memPct, memColor);
+
+  push_spark('mem', memPct);
+  draw_spark('spark-mem', sparkData.mem, memColor);
+
+  // ── Network ──────────────────────────────────────────────
+  const recv = fmt_speed(d.network.recv_speed);
+  const sent = fmt_speed(d.network.send_speed);
+
+  document.getElementById('net-recv').textContent      = recv.val;
+  document.getElementById('net-recv-unit').textContent = recv.unit;
+  document.getElementById('net-sent').textContent      = sent.val;
+  document.getElementById('net-sent-unit').textContent = sent.unit;
+  document.getElementById('net-total-recv').textContent= fmt_bytes(d.network.bytes_recv);
+  document.getElementById('net-total-sent').textContent= fmt_bytes(d.network.bytes_sent);
+
+  push_spark('net_recv', d.network.recv_speed / 1024);
+  push_spark('net_sent', d.network.send_speed / 1024);
+  draw_spark('spark-net', sparkData.net_recv, '#00ff88', '#00d4ff');
+
+  // ── Disk ─────────────────────────────────────────────────
+  const diskList = document.getElementById('disk-list');
+  diskList.innerHTML = '';
+  (d.disk || []).slice(0, 4).forEach(disk => {
+    const pct  = disk.percent;
+    const col  = color_for_pct(pct);
+    diskList.innerHTML += `
+      <div class="disk-item">
+        <div class="disk-header">
+          <span class="disk-path">${disk.mountpoint}</span>
+          <span class="disk-usage">${disk.fstype} · ${pct.toFixed(1)}%</span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:${pct}%;background:${col}"></div>
+        </div>
+        <div class="disk-sizes">
+          <span>${fmt_bytes(disk.used)} used</span>
+          <span>${fmt_bytes(disk.free)} free / ${fmt_bytes(disk.total)}</span>
+        </div>
+      </div>`;
+  });
+
+  // ── Processes ────────────────────────────────────────────
+  const tbody = document.getElementById('proc-tbody');
+  tbody.innerHTML = '';
+  (d.processes || []).forEach(p => {
+    const cpuCol = color_for_pct(p.cpu * 10);
+    const memCol = color_for_pct(p.mem * 5);
+    tbody.innerHTML += `
+      <tr>
+        <td><div class="proc-name">${p.name}</div></td>
+        <td class="proc-pid">${p.pid}</td>
+        <td>
+          <span style="color:${cpuCol}">${p.cpu.toFixed(1)}%</span>
+          <div class="bar-inline">
+            <div class="bar-inline-fill" style="width:${Math.min(p.cpu*2,100)}%;background:${cpuCol}"></div>
+          </div>
+        </td>
+        <td>
+          <span style="color:${memCol}">${p.mem.toFixed(1)}%</span>
+          <div class="bar-inline">
+            <div class="bar-inline-fill" style="width:${Math.min(p.mem*5,100)}%;background:${memCol}"></div>
+          </div>
+        </td>
+        <td>
+          <span style="color:${p.status==='running'?'var(--green)':'var(--muted)'}">
+            ${p.status}
+          </span>
+        </td>
+      </tr>`;
+  });
+}
+
+// ─── Clock ────────────────────────────────────────────────────────────────────
+function tick() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+setInterval(tick, 1000);
+tick();
+
+// ─── WebSocket ───────────────────────────────────────────────────────────────
+let ws, reconnTimer;
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+
+  ws.onopen = () => {
+    document.getElementById('status-dot').classList.add('live');
+    document.getElementById('status-text').textContent = 'Live';
+    document.getElementById('conn-banner').style.display = 'none';
+    clearTimeout(reconnTimer);
+  };
+
+  ws.onmessage = e => {
+    try { render(JSON.parse(e.data)); }
+    catch {}
+  };
+
+  ws.onclose = ws.onerror = () => {
+    document.getElementById('status-dot').classList.remove('live');
+    document.getElementById('status-text').textContent = 'Reconnecting…';
+    document.getElementById('conn-banner').style.display = 'block';
+    reconnTimer = setTimeout(connect, 3000);
+  };
+}
+
+// Initial snapshot then live WS
+fetch('/api/snapshot')
+  .then(r => r.json())
+  .then(d => render(d))
+  .catch(() => {})
+  .finally(() => connect());
+</script>
+</body>
+</html>

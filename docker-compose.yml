@@ -1,0 +1,46 @@
+services:
+  devpulse:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: devpulse
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"            # Accesible en http://localhost:8080
+
+    # ── Acceso a métricas del host ───────────────────────────────────────────
+    # pid: host   → ve los procesos reales del sistema host
+    # volumes     → acceso a /proc y /sys para CPU, red y disco reales
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+
+    environment:
+      - PYTHONUNBUFFERED=1
+
+    security_opt:
+      - no-new-privileges:true
+
+    # Limitar recursos para que el monitor no consuma lo que monitorea
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/snapshot')"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
