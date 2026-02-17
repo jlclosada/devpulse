@@ -8,7 +8,6 @@
   <img src="https://img.shields.io/badge/WebSockets-live-brightgreen?logo=socket.io&logoColor=white" />
   <img src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/psutil-6.0-orange" />
-  <img src="https://img.shields.io/badge/License-MIT-purple" />
 </p>
 
 ---
@@ -133,4 +132,4 @@ Some ideas to take it further:
 
 ## 📄 License
 
-MIT © 2024
+José Luis Cáceres Losada © 2026
